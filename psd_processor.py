@@ -155,6 +155,15 @@ class PSDProcessor:
             counter = self.name_counters[name_without_ext]
             output_name = f"{name_without_ext}-{counter}.psd"
         
+        # Ensure we don't overwrite existing files (safety check for external additions)
+        output_path = self.output_dir / output_name
+        while output_path.exists() and output_name not in self.file_hashes.values():
+            # File exists but not in our tracking - external file, skip to next number
+            self.name_counters[name_without_ext] += 1
+            counter = self.name_counters[name_without_ext]
+            output_name = f"{name_without_ext}-{counter}.psd"
+            output_path = self.output_dir / output_name
+        
         return output_name
     
     def _extract_layers(self, psd_path: Path, layer_dir: Path) -> int:
