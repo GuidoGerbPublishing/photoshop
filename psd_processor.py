@@ -144,27 +144,26 @@ class PSDProcessor:
         # Get base name without extension
         name_without_ext = Path(original_name).stem
         
-        # Check if this base name has been used before
+        # Initialize counter if first time seeing this name
         if name_without_ext not in self.name_counters:
-            # First time seeing this name
-            self.name_counters[name_without_ext] = 0
-            output_name = f"{name_without_ext}.psd"
-        else:
-            # Name exists, increment counter
-            self.name_counters[name_without_ext] += 1
-            counter = self.name_counters[name_without_ext]
-            output_name = f"{name_without_ext}-{counter}.psd"
+            self.name_counters[name_without_ext] = -1  # Will increment to 0 on first use
         
-        # Ensure we don't overwrite existing files (safety check for external additions)
-        output_path = self.output_dir / output_name
-        while output_path.exists() and output_name not in self.file_hashes.values():
-            # File exists but not in our tracking - external file, skip to next number
+        # Generate output name with appropriate suffix
+        while True:
             self.name_counters[name_without_ext] += 1
             counter = self.name_counters[name_without_ext]
-            output_name = f"{name_without_ext}-{counter}.psd"
+            
+            if counter == 0:
+                output_name = f"{name_without_ext}.psd"
+            else:
+                output_name = f"{name_without_ext}-{counter}.psd"
+            
+            # Check if this name is available (not an external file)
             output_path = self.output_dir / output_name
-        
-        return output_name
+            if not output_path.exists() or output_name in self.file_hashes.values():
+                # Name is available (doesn't exist or is one of our tracked files)
+                return output_name
+            # Otherwise, loop and try next counter value
     
     def _extract_layers(self, psd_path: Path, layer_dir: Path) -> int:
         """
