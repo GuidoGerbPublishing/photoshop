@@ -58,7 +58,8 @@ class PSDProcessor:
         
         # State tracking
         self.processed_files: Set[str] = set()
-        self.file_hashes: Dict[str, str] = {}  # hash -> output_path
+        self.file_hashes: Dict[str, str] = {}  # hash -> output_filename
+        self.name_counters: Dict[str, int] = {}  # base_name -> counter for incremental naming
         
         # Load previous state if exists
         self._load_state()
@@ -71,6 +72,7 @@ class PSDProcessor:
                     state = json.load(f)
                     self.processed_files = set(state.get('processed_files', []))
                     self.file_hashes = state.get('file_hashes', {})
+                    self.name_counters = state.get('name_counters', {})
                 logger.info(f"Loaded state: {len(self.processed_files)} previously processed files")
             except Exception as e:
                 logger.warning(f"Failed to load state file: {e}")
@@ -80,7 +82,8 @@ class PSDProcessor:
         try:
             state = {
                 'processed_files': list(self.processed_files),
-                'file_hashes': self.file_hashes
+                'file_hashes': self.file_hashes,
+                'name_counters': self.name_counters
             }
             with open(self.state_file, 'w') as f:
                 json.dump(state, f, indent=2)
@@ -122,6 +125,8 @@ class PSDProcessor:
     def _get_output_name(self, file_hash: str, original_name: str) -> str:
         """
         Generate output filename based on hash and original name.
+        Uses incremental suffixes (file-1.psd, file-2.psd) when files have
+        the same name but different content.
         
         Args:
             file_hash: SHA256 hash of the file
@@ -130,24 +135,35 @@ class PSDProcessor:
         Returns:
             Output filename
         """
-        # Check if we've seen this hash before
+        # Check if we've seen this exact hash before (true duplicate)
         if file_hash in self.file_hashes:
             existing_name = self.file_hashes[file_hash]
-            logger.debug(f"Hash collision: {original_name} matches existing {existing_name}")
+            logger.debug(f"Duplicate content detected: {original_name} matches existing {existing_name}")
             return existing_name
         
-        # Use hash prefix + original name for uniqueness
+        # Get base name without extension
         name_without_ext = Path(original_name).stem
-        hash_prefix = file_hash[:8]
-        output_name = f"{hash_prefix}_{name_without_ext}.psd"
         
-        # Handle potential naming conflicts
-        counter = 1
-        while output_name in self.file_hashes.values():
-            output_name = f"{hash_prefix}_{name_without_ext}_{counter}.psd"
-            counter += 1
+        # Initialize counter if first time seeing this name
+        if name_without_ext not in self.name_counters:
+            self.name_counters[name_without_ext] = -1  # Will increment to 0 on first use
+        
+        # Generate output name with appropriate suffix
+        while True:
+            self.name_counters[name_without_ext] += 1
+            counter = self.name_counters[name_without_ext]
             
-        return output_name
+            if counter == 0:
+                output_name = f"{name_without_ext}.psd"
+            else:
+                output_name = f"{name_without_ext}-{counter}.psd"
+            
+            # Check if this name is available (not an external file)
+            output_path = self.output_dir / output_name
+            if not output_path.exists() or output_name in self.file_hashes.values():
+                # Name is available (doesn't exist or is one of our tracked files)
+                return output_name
+            # Otherwise, loop and try next counter value
     
     def _extract_layers(self, psd_path: Path, layer_dir: Path) -> int:
         """
