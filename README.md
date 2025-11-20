@@ -66,8 +66,8 @@ python psd_processor.py ./input ./output --verbose
 1. **Scanning**: The tool recursively scans the input directory for all `.psd` files
 2. **Hashing**: Each PSD file is hashed using SHA256 to create a unique fingerprint
 3. **Deduplication**: Files with identical hashes are recognized as duplicates and only processed once
-4. **Copying**: Each unique PSD file is copied to the output directory with a hash-prefixed name
-5. **Layer Extraction**: A dedicated folder is created for each PSD file
+4. **Copying**: Each unique PSD file is copied to the output directory; if a file with the same name already exists but has different content (different hash), it's saved with an incremented suffix (e.g., file-1.psd, file-2.psd)
+5. **Layer Extraction**: A dedicated folder is created for each PSD file, named after the source file (without extension)
 6. **PNG Export**: All visible layers are exported as individual PNG files (layer1.png, layer2.png, ...)
 7. **State Tracking**: Progress is saved to a JSON file after each processed file
 8. **Resume**: On subsequent runs, already processed files are skipped
@@ -76,16 +76,20 @@ python psd_processor.py ./input ./output --verbose
 
 ```
 output/
-├── 12abc34d_document1.psd
-├── 12abc34d_document1_layers/
+├── document1.psd
+├── document1_layers/
 │   ├── layer1.png
 │   ├── layer2.png
 │   ├── layer3.png
 │   └── composite.png
-├── 56def78e_document2.psd
-├── 56def78e_document2_layers/
+├── document2.psd
+├── document2_layers/
 │   ├── layer1.png
 │   ├── layer2.png
+│   └── composite.png
+├── document1-1.psd        # Same name, different content
+├── document1-1_layers/
+│   ├── layer1.png
 │   └── composite.png
 └── ...
 ```
